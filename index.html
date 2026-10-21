@@ -352,6 +352,19 @@ main {
 <input id="Q" type="number" min="0.001" step="any" value="0.75">
 </div>
 <div class="field">
+<label for="flowArea">Cross-section area A (m²)</label>
+<input id="flowArea" type="number" min="0" step="any" value="0" placeholder="Enter area">
+</div>
+<div class="field">
+<label for="flowVelocity">Mean velocity V (m/s)</label>
+<input id="flowVelocity" type="number" min="0" step="any" value="0" placeholder="Enter velocity">
+</div>
+<div class="field">
+<label for="useAV">Use Q = A × V for design Q</label>
+<input id="useAV" type="checkbox" style="width:20px;height:20px;justify-self:end">
+</div>
+<div id="avResult" class="note" style="margin:8px 0 12px">Enter A and V to calculate Q = A × V. Check the box to use that Q in the canal sizing calculation.</div>
+<div class="field">
 <label for="S">Longitudinal slope S (%)</label>
 <input id="S" type="number" min="0.001" step="any" value="0.5">
 </div>
@@ -629,6 +642,23 @@ const num=id=>Number($(id).value);
 
 const fmt=(x,d=3)=>Number.isFinite(x)?x.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d}):'—';
 
+// ===== Q = A × V helper =====
+function updateAV(){
+  const A = Number($('flowArea').value);
+  const V = Number($('flowVelocity').value);
+  const valid = $('flowArea').value !== '' && $('flowVelocity').value !== '' &&
+                Number.isFinite(A) && Number.isFinite(V) && A > 0 && V > 0;
+  const q = valid ? A * V : NaN;
+  $('avResult').innerHTML = valid
+    ? `<strong>Computed discharge:</strong> Q = ${fmt(A,3)} × ${fmt(V,3)} = <strong>${fmt(q,3)} m³/s</strong>${$('useAV').checked ? ' <span class="good">(used for design)</span>' : ' <span class="small">(check the box to use this value for design)</span>'}`
+    : 'Enter positive values for both cross-section area A and velocity V.';
+  if(valid && $('useAV').checked) $('Q').value = q.toFixed(6);
+  return valid ? q : NaN;
+}
+$('flowArea').addEventListener('input', updateAV);
+$('flowVelocity').addEventListener('input', updateAV);
+$('useAV').addEventListener('change', updateAV);
+
 // ===== Hydraulic geometry and section search =====
 function section(b,y,shape,z){let A=shape==='trap'?b*y+z*y*y:b*y;
 
@@ -651,7 +681,7 @@ function kgpm(d){return d*d/162}
 function addRow(tds){return '<tr>'+tds.map((v,i)=>`<td${i>1?' class="num"':''}>${v}</td>`).join('')+'</tr>'}
 
 // ===== Main calculation: inputs, hydraulics, quantities, reinforcement =====
-function calculate(){let Q=num('Q'),S=num('S')/100,vmax=num('vmax'),n=num('n'),shape=$('shape').value,z=shape==='rect'?0:num('z'),fb=num('fb'),L=num('length'),tb=num('tb'),tw=num('tw'),cl=num('clear'),excZ=num('excSlope'),cover=num('cover')/1000,bd=num('baseDia'),wd=num('wallDia'),dd=num('distDia'),bs=num('baseSp')/1000,ws=num('wallSp')/1000,ds=num('distSp')/1000,waste=num('waste')/100;
+function calculate(){if($('useAV').checked){const qAV=updateAV();if(!Number.isFinite(qAV)||qAV<=0){$('status').innerHTML='<span class="bad">Enter positive cross-section area and velocity values to calculate Q = A × V.</span>';return;}} let Q=num('Q'),S=num('S')/100,vmax=num('vmax'),n=num('n'),shape=$('shape').value,z=shape==='rect'?0:num('z'),fb=num('fb'),L=num('length'),tb=num('tb'),tw=num('tw'),cl=num('clear'),excZ=num('excSlope'),cover=num('cover')/1000,bd=num('baseDia'),wd=num('wallDia'),dd=num('distDia'),bs=num('baseSp')/1000,ws=num('wallSp')/1000,ds=num('distSp')/1000,waste=num('waste')/100;
 
 if(!(Q>0&&S>0&&vmax>0&&n>0&&fb>=0&&L>0&&tb>0&&tw>0&&bs>0&&ws>0&&ds>0)){ $('status').innerHTML='<span class="bad">Please enter positive valid values for required inputs.</span>';
     return;
@@ -753,10 +783,10 @@ let water=`M ${ix1} ${waterY} L ${ix2} ${waterY} L ${ix1+0} ${waterY}`;
 <text x="260" y="65" text-anchor="middle" font-size="11" fill="#087eae">Design water level</text>`}
 
 // ===== Reset all editable inputs =====
-function resetDefaults(){document.querySelectorAll('input').forEach(i=>{let defaults={Q:.75,S:.5,vmax:3,n:.015,z:.5,fb:.3,length:100,tb:.15,tw:.15,clear:.3,excSlope:.5,cover:40,baseSp:200,wallSp:200,distSp:200,waste:5,fc:21,fy:280};
+function resetDefaults(){document.querySelectorAll('input').forEach(i=>{let defaults={Q:.75,flowArea:0,flowVelocity:0,S:.5,vmax:3,n:.015,z:.5,fb:.3,length:100,tb:.15,tw:.15,clear:.3,excSlope:.5,cover:40,baseSp:200,wallSp:200,distSp:200,waste:5,fc:21,fy:280};
 
 if(defaults[i.id]!==undefined)i.value=defaults[i.id]});
-  $('shape').value='rect';
+  $('useAV').checked=false;\n  updateAV();\n  $('shape').value='rect';
   $('baseDia').value='12';
   $('wallDia').value='12';
   $('distDia').value='10';
